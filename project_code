@@ -1,0 +1,228 @@
+import sqlite3
+import datetime
+
+conn = sqlite3.connect("pharmacy.db")
+cursor = conn.cursor()
+
+'''✅ 1. Add Medicines to Inventory
+Store medicine name, price, stock quantity, and expiry date.'''
+
+def medicines_inventory():
+    name = input("Enter medicine name: ")
+    price = input("Enter medicine price: ")
+    stock = input("Enter medicine quantity: ")
+    expiry_date = input("Enter medicine expiry date: ")
+
+    cursor.execute("INSERT INTO medicines_table (name, price, stock, expiry_date) VALUES('"+name+"', '"+price+"', '"+stock+"', '"+expiry_date+"')")
+    conn.commit()
+
+# '''✅ 2. View Medicine Stock
+# Display available medicines with stock quantity & expiry date.'''
+def view_medicines():
+    cursor.execute("""
+        SELECT name,stock, expiry_date 
+        FROM medicines_table
+    """)
+    medicines = cursor.fetchall()
+    for medicine in medicines:
+        if medicine:
+            print(f"{medicine} Medicine found.")
+        else:
+            print("Medicine not found!")
+
+
+# '''✅ 3. Update Medicine Stock
+# Modify stock after a purchase or when restocking.'''
+def update_stock():
+    medicine_id = input("Enter medicine id to update: ")
+    stock_quantity = input("Enter new stock quantity to update: ")
+
+    cursor.execute("UPDATE medicines_table SET stock = '"+stock_quantity+"' WHERE id = '"+medicine_id+"'")
+    conn.commit()
+
+
+# '''✅ 4. Process a Sale (Generate Invoice)
+# Select a medicine, enter quantity, and generate a total bill.
+# Deduct sold quantity from stock.
+# Store sale details in the Sales Table.'''
+def generate_invoice():
+    medicine_id = input("Enter medicine id: ")
+    quantity = input("Enter quantity: ")
+
+    # Check if medicine exists
+    cursor.execute("SELECT name, price, stock FROM medicines_table WHERE id = '"+medicine_id+"'")
+    medicine = cursor.fetchone()
+    if not medicine:
+        print("Medicine not found.")
+        return
+    
+    medicine_name = medicine[0]
+    price = medicine[1]
+    stock = medicine[2]
+
+     # Check stock availability
+    if int(quantity) > stock:
+        print("Insufficient stock available!")
+        return
+    
+    # Calculate total price
+    total_price = str(price * int(quantity))
+    sale_time = datetime.datetime.now().strftime("%Y-%m-%d")
+
+    # Deduct stock from medicines_table
+    cursor.execute("UPDATE medicines_table SET stock = stock - '"+quantity+"' WHERE id = '"+medicine_id+"'")
+
+    # Store sale details in sales_table
+    cursor.execute("INSERT INTO sales_table (medicine_id, quantity, total_price, date_time) VALUES ('"+medicine_id+"', '"+quantity+"','"+total_price+"', '"+sale_time+"')")
+    conn.commit()
+
+    # Display invoice
+    print("\n======== INVOICE =======")
+    print("Medicine: "+ medicine_name)
+    print("Quantity: "+ quantity)
+    print("Total Price: "+ total_price)
+    print("Date & Time: "+ sale_time)
+    print("====================\n")
+    print("Sale processed successfully!")
+
+
+'''✅ 5. Search Medicines
+Find medicines by name or expiry date.'''
+def search_medicines():
+    search_medicine = input("Enter medicine name to search: ")
+    search_expiry_date = input("Enter expiry date to search: ")
+    cursor.execute("SELECT * FROM medicines_table WHERE name Like '"+search_medicine+"' or expiry_date Like '"+search_expiry_date+"'")
+    medicine = cursor.fetchall()
+    if medicine:
+        print(f"{search_medicine} Medicine found with expiry date {search_expiry_date}.")
+    else:
+        print(" Medicine Not found!")
+
+
+# '''✅ 6. View Sales History
+# Show all past transactions with medicine details and timestamps.'''
+def view_sales():
+    cursor.execute("""
+        SELECT 
+            sales.medicine_id,
+            medicines.name AS medicine_name,
+            sales.quantity,
+            sales.total_price,
+            sales.date_time
+        FROM 
+            sales_table as sales
+        LEFT JOIN medicines_table as medicines
+        ON sales.medicine_id = medicines.id
+""")
+    sales_records = cursor.fetchall()
+    if not sales_records:
+        print("No sales history available!")
+        return
+
+    print("Sales records:\n[")
+    print(*sales_records, sep=",\n")
+    print("]")
+
+# You can use this code for less data
+    # if not sales_records:
+    #     print("No sales history available!")
+    #     return
+    
+    # for sale in sales_records:
+    #     print(f"Medicine ID: {sale[0]}")
+    #     print(f"Medicine Name: {sale[1]}")
+    #     print(f"Quantity Sold: {sale[2]}")
+    #     print(f"Total Price: {sale[3]}")
+    #     print(f"Date & Time: {sale[4]}")
+    #     print("=========================\n")
+
+
+
+# '''✅ 7. Manage Customers
+# Add customer names & phone numbers to the database.
+# Link sales to customers for tracking purchases.'''
+def add_customers():
+    name = input("Enter customer name: ")
+    phone = input("Enter phone number: ")
+    cursor.execute("INSERT INTO customers_table(name, phone) VALUES ('"+name+"', '"+phone+"')")
+
+    conn.commit()
+
+
+
+# '''✅ 8. Check Expiring Medicines
+# List medicines expiring soon (within the next 30 days).'''
+def check_expiring_medicines():
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    next_30_days = (datetime.datetime.now() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+
+    cursor.execute("""
+        SELECT
+            id,
+            name,
+            expiry_date,
+            stock
+        FROM 
+            medicines_table
+        WHERE DATE(expiry_date) BETWEEN '"""+str(today)+"""' AND '"""+next_30_days+"""'
+""")
+    expiring_medicines = cursor.fetchall()
+    if not expiring_medicines:
+        print("No medicines expiring within the next 30 days.")
+        return
+    
+    print("\n===== EXPIRING MEDICINES (NEXT 30 DAYS)=====")
+    for medicine in expiring_medicines:
+        print(f"ID: {medicine[0]}")
+        print(f"Name: {medicine[1]}")
+        print(f"Expiry Date: {medicine[2]}")
+        print(f"Stock: {medicine[3]}")
+        print("==================================\n")
+
+
+# Main function
+def main():
+    while True:
+        choice = int(input(
+            "Enter 1 to insert medicine in inventory\n"
+            "Enter 2 to view available stock\n"
+            "Enter 3 to Update medicine stock\n"
+            "Enter 4 to Generate invoice\n"
+            "Enter 5 to Search Medicines\n"
+            "Enter 6 to View sales history\n"
+            "Enter 7 to add customers\n"
+            "Enter 8 to check expiring medicines\n"
+            "Enter 0 to Exit\n"
+            "Please Enter here: "
+        ))
+        if choice == 1:
+            medicines_inventory()
+            print("Data inserted in inventory successfull.\n")
+        elif choice == 2:
+            view_medicines()
+            print("Available medicine stock.\n")
+        elif choice == 3:
+            update_stock()
+            print("Stock updated successfully.\n")
+        elif choice == 4:
+            generate_invoice()
+            print("Invoice generated successfully!\n")
+        elif choice == 5:
+            search_medicines()
+            print("Medicine found.\n")
+        elif choice == 6:
+            view_sales()
+            print("Sales record printed!\n")
+        elif choice == 7:
+            add_customers()
+            print("Customer added successfully.\n")
+        elif choice == 8:
+            check_expiring_medicines()
+            print("Expiring medicines record printed!")
+        elif choice == 0:
+            print("Exiting program.")
+            break
+        else:
+            print("Invalid choice! Try again")
+
+main()
